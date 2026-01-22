@@ -17,7 +17,8 @@ Security Monitoring: Audit trails & intrusion detection
 Security Policies: Account lockout, auto-lock, password policies
 Network Security: IP tracking and geolocation simulation
 
-Quick Start
+Quick Start:
+
 sudo apt install python3-bcrypt python3-cryptography python3-pil -y
 python3 main.py
 
