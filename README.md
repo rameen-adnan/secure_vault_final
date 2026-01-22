@@ -22,10 +22,16 @@ Quick Start:
 sudo apt install python3-bcrypt python3-cryptography python3-pil -y
 python3 main.py
 
-Features
+Features:
+
 User registration/login with bcrypt hashing
+
 AES-256 encrypted password storage
+
 Auto-lock after inactivity (1-30 minutes)
+
 Comprehensive audit logging
+
 Password strength checker & generator
+
 Dashboard with security statistics
