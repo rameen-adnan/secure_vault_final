@@ -1,4 +1,4 @@
-# credential_management.py - WITH HEADER BOX AND FULLY EXTENDED CARDS
+# credential_management.py - FIXED DATA PERSISTENCE
 import tkinter as tk
 from tkinter import messagebox
 from datetime import datetime
@@ -15,10 +15,41 @@ class CredentialManager:
         self.encryption = encryption
         self.dashboard_callback = dashboard_callback
 
+        # FIXED: Load existing credentials from vault
         self.data = {"users": {}}
+        self.load_credentials()
+
+    # NEW METHOD: Load credentials from vault
+    def load_credentials(self):
+        """Load existing credentials from vault.json"""
+        vault_file = "vault.json"
+        if os.path.exists(vault_file):
+            with open(vault_file, "r") as f:
+                vault_data = json.load(f)
+            
+            # Decrypt credentials for current user
+            if self.current_user in vault_data:
+                credentials = []
+                for cred in vault_data[self.current_user]:
+                    try:
+                        decrypted = {
+                            'service': self.encryption.decrypt(cred['service']),
+                            'username': self.encryption.decrypt(cred['username']),
+                            'password': self.encryption.decrypt(cred['password']),
+                            'category': cred.get('category', 'General'),
+                            'strength': cred.get('strength', 'Weak')
+                        }
+                        credentials.append(decrypted)
+                    except Exception as e:
+                        print(f"Error decrypting credential: {e}")
+                
+                self.data["users"][self.current_user] = {"credentials": credentials}
 
     # ---------------- Show Credentials ----------------
     def show_credentials(self):
+        # Reload credentials to ensure we have latest data
+        self.load_credentials()
+        
         self.clear_window()
 
         # Back button
@@ -103,8 +134,20 @@ class CredentialManager:
 
         # Load credentials for current user
         if self.current_user in self.data["users"]:
-            for cred in self.data["users"][self.current_user]["credentials"]:
-                self.create_credential_card(cred)
+            credentials = self.data["users"][self.current_user]["credentials"]
+            if credentials:
+                for cred in credentials:
+                    self.create_credential_card(cred)
+            else:
+                # Display message if no credentials
+                tk.Label(
+                    self.scrollable_frame,
+                    text="No credentials found. Click 'Add Credential' to create your first entry.",
+                    font=("Arial", 12),
+                    bg="#f0f2f5",
+                    fg="#64748b",
+                    pady=50
+                ).pack()
         else:
             # Display message if no credentials
             tk.Label(
@@ -227,6 +270,7 @@ class CredentialManager:
                 "username": username,
                 "password": pwd,
                 "strength": self.calculate_password_strength(pwd),
+                "category": "General",
                 "created": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             }
 
@@ -245,6 +289,7 @@ class CredentialManager:
             # LOG PASSWORD ADDED
             AuditLog.log_password_operation("added", service_name, "Created new password entry", user_email)
 
+            # Update vault with encrypted data
             self.update_callback(self.data["users"][self.current_user]["credentials"])
             dialog.destroy()
             self.show_credentials()
@@ -414,6 +459,7 @@ class CredentialManager:
             # LOG PASSWORD EDITED
             AuditLog.log_password_operation("edited", credential['service'], "Password updated and modified", user_email)
 
+            # Update vault with encrypted data
             self.update_callback(self.data["users"][self.current_user]["credentials"])
             dialog.destroy()
             self.show_credentials()
@@ -454,6 +500,8 @@ class CredentialManager:
         AuditLog.log_password_operation("deleted", credential['service'], "Permanently removed from vault", user_email)
         
         self.data["users"][self.current_user]["credentials"].remove(credential)
+        
+        # Update vault with encrypted data
         self.update_callback(self.data["users"][self.current_user]["credentials"])
         self.show_credentials()
         
