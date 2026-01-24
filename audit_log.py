@@ -1,42 +1,68 @@
-# audit_log.py - WITH ALL BOXES EXTENDED HORIZONTALLY TO MATCH ERROR ALERTS
+# audit_log.py - WITH REAL PUBLIC IP ADDRESS
 import tkinter as tk
 from tkinter import ttk, messagebox
 from datetime import datetime
 import json
 import os
 import socket
-import random
 import subprocess
+import urllib.request
 
 class AuditLog:
     LOG_FILE = "audit_logs.json"
     
     @staticmethod
     def get_real_ip():
-        """Get actual IP address"""
+        """Get REAL PUBLIC IP address"""
         try:
-            # Method for Linux/Kali
-            result = subprocess.run(['hostname', '-I'], capture_output=True, text=True)
-            if result.stdout:
-                ip = result.stdout.strip().split()[0]
-                return ip
-        except:
-            pass
-        
-        try:
-            # Fallback method
-            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            s.connect(("8.8.8.8", 80))
-            ip = s.getsockname()[0]
-            s.close()
-            return ip
-        except:
+            # Method 1: Try to get public IP from external service
+            try:
+                # Try multiple public IP services
+                services = [
+                    'https://api.ipify.org',
+                    'https://icanhazip.com',
+                    'https://checkip.amazonaws.com'
+                ]
+                
+                for service in services:
+                    try:
+                        response = urllib.request.urlopen(service, timeout=3)
+                        public_ip = response.read().decode('utf-8').strip()
+                        if public_ip and '.' in public_ip and not public_ip.startswith('192.168.'):
+                            print(f"✓ Got public IP from {service}: {public_ip}")
+                            return public_ip
+                    except:
+                        continue
+            except:
+                pass
+            
+            # Method 2: Get local IP (fallback)
+            try:
+                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                s.connect(("8.8.8.8", 80))
+                local_ip = s.getsockname()[0]
+                s.close()
+                print(f"⚠ Using local IP: {local_ip}")
+                return local_ip
+            except:
+                pass
+            
+            # Method 3: Linux command (last resort)
+            try:
+                result = subprocess.run(['hostname', '-I'], capture_output=True, text=True)
+                if result.stdout:
+                    ip = result.stdout.strip().split()[0]
+                    print(f"⚠ Using hostname IP: {ip}")
+                    return ip
+            except:
+                pass
+            
+            print("❌ Could not get any IP")
             return "192.168.1.100"
-    
-    @staticmethod
-    def generate_external_ip():
-        """Generate a fake external IP for failed attempts"""
-        return f"203.45.67.{random.randint(85, 99)}"
+            
+        except Exception as e:
+            print(f"IP detection failed: {e}")
+            return "192.168.1.100"
     
     @staticmethod
     def log_event(event_type, severity, description, user, ip_address=None):
@@ -44,10 +70,7 @@ class AuditLog:
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
         if not ip_address:
-            if "FAILED" in event_type or "failed" in event_type.lower():
-                ip_address = AuditLog.generate_external_ip()
-            else:
-                ip_address = AuditLog.get_real_ip()
+            ip_address = AuditLog.get_real_ip()
         
         log_entry = {
             "timestamp": timestamp,
@@ -100,13 +123,11 @@ class AuditLog:
     @staticmethod
     def log_login_failed(user_email, reason, device_info="Windows PC"):
         """Log failed login attempt"""
-        fake_ip = AuditLog.generate_external_ip()
         return AuditLog.log_event(
             event_type="LOGIN_FAILED",
             severity="WARNING" if "Invalid" in reason else "CRITICAL",
             description=f"User: {user_email} | Device: {device_info} | Reason: {reason}",
-            user=user_email,
-            ip_address=fake_ip
+            user=user_email
         )
     
     @staticmethod
