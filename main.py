@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 SECURE PASSWORD MANAGER - MAIN FILE (WITH REGISTRATION)
-Run this file to start the application
+
 """
 
 import tkinter as tk
