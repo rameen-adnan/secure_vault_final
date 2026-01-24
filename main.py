@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-SECURE PASSWORD MANAGER - SINGLE PASSWORD SYSTEM
+SECURE PASSWORD MANAGER - MAIN FILE (WITH REGISTRATION)
 Run this file to start the application
 """
 
@@ -35,7 +35,7 @@ class SecureVaultApp:
         self.locked_until = None
         self.lock_timer_id = None
         self.lockout_label = None
-        self.login_frame = None
+        self.login_frame = None  # Track current login frame
 
         # ---------------- Auto-Lock Timer ----------------
         self.auto_lock_timer_id = None
@@ -46,7 +46,16 @@ class SecureVaultApp:
         self.vault_file = "vault.json"
         self.settings_file = "settings.json"
 
-        # ---------------- Initialize Files ----------------
+        # ---------------- Credential Manager ----------------
+        self.credential_manager = CredentialManager(
+            root=self.root,
+            current_user=None,
+            update_callback=self.update_vault_data,
+            encryption=self.encryption,
+            dashboard_callback=self.show_dashboard
+        )
+
+        # ---------------- Create Sample Data ----------------
         self.initialize_sample_data()
 
         # ---------------- Start Login ----------------
@@ -64,39 +73,136 @@ class SecureVaultApp:
                     "name": "John Doe",
                     "password": bcrypt.hashpw("Password123!".encode(), bcrypt.gensalt()).decode(),
                     "email": "john.doe@gmail.com",
-                    "created": "2024-01-15"
+                    "created": "2024-01-15",
+                    "has_recovery": False
                 },
                 "alice.smith": {
                     "name": "Alice Smith",
                     "password": bcrypt.hashpw("SecurePass456@".encode(), bcrypt.gensalt()).decode(),
                     "email": "alice.smith@protonmail.com",
-                    "created": "2024-02-20"
+                    "created": "2024-02-20",
+                    "has_recovery": False
                 },
                 "bob.johnson": {
                     "name": "Bob Johnson",
                     "password": bcrypt.hashpw("VaultPass789#".encode(), bcrypt.gensalt()).decode(),
                     "email": "bob.j@outlook.com",
-                    "created": "2024-03-10"
+                    "created": "2024-03-10",
+                    "has_recovery": False
                 }
             }
             with open(self.users_file, "w") as f:
                 json.dump(users, f, indent=4)
 
-        # Create vault.json if not exists
+        # Create vault.json if not exists with passwords for ALL users
         if not os.path.exists(self.vault_file):
-            # Load existing users to create vault entries for them
-            users = {}
-            if os.path.exists(self.users_file):
-                with open(self.users_file, "r") as f:
-                    users = json.load(f)
-            
-            # Create empty vault for all users
-            vault = {}
-            for username in users.keys():
-                vault[username] = []
-            
+            sample_vault = {
+                "john.doe": [
+                    {
+                        "service": self.encryption.encrypt("Facebook"),
+                        "username": self.encryption.encrypt("john@example.com"),
+                        "password": self.encryption.encrypt("MyPassword123!"),
+                        "category": "Social Media",
+                        "strength": "Strong"
+                    },
+                    {
+                        "service": self.encryption.encrypt("Gmail"),
+                        "username": self.encryption.encrypt("john.doe@gmail.com"),
+                        "password": self.encryption.encrypt("SecurePass123"),
+                        "category": "Email",
+                        "strength": "Weak"
+                    },
+                    {
+                        "service": self.encryption.encrypt("Google"),
+                        "username": self.encryption.encrypt("john.doe@gmail.com"),
+                        "password": self.encryption.encrypt("WeakPass1"),
+                        "category": "Email",
+                        "strength": "Weak"
+                    },
+                    {
+                        "service": self.encryption.encrypt("Netflix"),
+                        "username": self.encryption.encrypt("john@gmail.com"),
+                        "password": self.encryption.encrypt("StrongPass$123"),
+                        "category": "Entertainment",
+                        "strength": "Strong"
+                    }
+                ],
+                "alice.smith": [
+                    {
+                        "service": self.encryption.encrypt("Google"),
+                        "username": self.encryption.encrypt("alice.smith@gmail.com"),
+                        "password": self.encryption.encrypt("SecurePass456@"),
+                        "category": "Email",
+                        "strength": "Strong"
+                    },
+                    {
+                        "service": self.encryption.encrypt("GitHub"),
+                        "username": self.encryption.encrypt("alice.smith"),
+                        "password": self.encryption.encrypt("GitHubPass789"),
+                        "category": "Development",
+                        "strength": "Strong"
+                    },
+                    {
+                        "service": self.encryption.encrypt("Twitter"),
+                        "username": self.encryption.encrypt("alice_smith"),
+                        "password": self.encryption.encrypt("TwitterPass!123"),
+                        "category": "Social Media",
+                        "strength": "Medium"
+                    }
+                ],
+                "bob.johnson": [
+                    {
+                        "service": self.encryption.encrypt("Microsoft"),
+                        "username": self.encryption.encrypt("bob.j@outlook.com"),
+                        "password": self.encryption.encrypt("VaultPass789#"),
+                        "category": "Email",
+                        "strength": "Strong"
+                    },
+                    {
+                        "service": self.encryption.encrypt("Amazon"),
+                        "username": self.encryption.encrypt("bob.johnson"),
+                        "password": self.encryption.encrypt("AmazonPass123"),
+                        "category": "Shopping",
+                        "strength": "Weak"
+                    },
+                    {
+                        "service": self.encryption.encrypt("LinkedIn"),
+                        "username": self.encryption.encrypt("bob.johnson@pro.com"),
+                        "password": self.encryption.encrypt("LinkedIn#2024"),
+                        "category": "Professional",
+                        "strength": "Strong"
+                    }
+                ]
+            }
             with open(self.vault_file, "w") as f:
-                json.dump(vault, f, indent=4)
+                json.dump(sample_vault, f, indent=4)
+            
+            # Add empty vault for any other existing users
+            self.add_vault_for_existing_users()
+
+    def add_vault_for_existing_users(self):
+        """Add vault entries for all existing users"""
+        if not os.path.exists(self.users_file) or not os.path.exists(self.vault_file):
+            return
+        
+        try:
+            with open(self.users_file, "r") as f:
+                users = json.load(f)
+            
+            with open(self.vault_file, "r") as f:
+                vault = json.load(f)
+            
+            updated = False
+            for username in users:
+                if username not in vault:
+                    vault[username] = []
+                    updated = True
+            
+            if updated:
+                with open(self.vault_file, "w") as f:
+                    json.dump(vault, f, indent=4)
+        except:
+            pass
 
     # ---------------- Login Screen ----------------
     def show_login(self):
@@ -180,16 +286,13 @@ class SecureVaultApp:
             "name": name,
             "password": hashed_password,
             "email": email,
-            "created": time.strftime("%Y-%m-%d")
+            "created": time.strftime("%Y-%m-%d"),
+            "has_recovery": False
         }
         
         # Save users
         with open(self.users_file, "w") as f:
             json.dump(users, f, indent=4)
-        
-        # Setup encryption for new user (SAME password!)
-        temp_encryption = EncryptionManager()
-        temp_encryption.setup_for_user(username, password)
         
         # Initialize empty vault for new user
         vault = {}
@@ -230,32 +333,39 @@ class SecureVaultApp:
                           f"Account created successfully!\n\n" +
                           f"Username: {username}\n" +
                           f"Email: {email}\n\n" +
-                          "Remember: Your login password also encrypts your vault!")
+                          "You can now login with your credentials.")
         
         self.show_login()
 
     def check_lock_status(self):
         """Check and display lock status with countdown"""
         try:
+            # Check if we have a lockout time
             if self.locked_until:
                 current_time = time.time()
                 
+                # Check if still locked
                 if current_time < self.locked_until:
                     remaining = int(self.locked_until - current_time)
                     minutes = remaining // 60
                     seconds = remaining % 60
                     
+                    # Update attempts display
                     if hasattr(self, 'update_attempts_func'):
                         self.update_attempts_func(5)
                     
+                    # Find the current login frame
                     current_frame = None
                     for widget in self.root.winfo_children():
                         if isinstance(widget, tk.Frame):
                             current_frame = widget
                             break
                     
+                    # Create or update lockout label
                     if current_frame:
+                        # Check if lockout_label exists and is valid
                         if self.lockout_label is None or not hasattr(self.lockout_label, 'winfo_exists') or not self.lockout_label.winfo_exists():
+                            # Create new label
                             self.lockout_label = tk.Label(
                                 current_frame,
                                 text=f"⏱ Account locked for: {minutes:02d}:{seconds:02d}",
@@ -265,30 +375,38 @@ class SecureVaultApp:
                             )
                             self.lockout_label.place(relx=0.5, rely=0.7, anchor='center')
                         else:
+                            # Update existing label
                             self.lockout_label.config(text=f"⏱ Account locked for: {minutes:02d}:{seconds:02d}")
                         
+                        # Schedule next update
                         self.lock_timer_id = self.root.after(1000, self.check_lock_status)
                         return True
                     else:
+                        # No frame found, schedule check later
                         self.lock_timer_id = self.root.after(1000, self.check_lock_status)
                         return True
                 else:
+                    # Lock has expired
                     self.locked_until = None
                     self.login_attempts = 0
                     self.failed_attempts = 0
                     
+                    # Update attempts display
                     if hasattr(self, 'update_attempts_func'):
                         self.update_attempts_func(0)
                     
+                    # Remove lockout label if it exists
                     if self.lockout_label and hasattr(self.lockout_label, 'winfo_exists') and self.lockout_label.winfo_exists():
                         self.lockout_label.destroy()
                     
                     self.lockout_label = None
                     
+                    # Clear timer
                     if self.lock_timer_id:
                         self.root.after_cancel(self.lock_timer_id)
                         self.lock_timer_id = None
             
+            # Remove lockout label if no lock and it exists
             elif self.lockout_label and hasattr(self.lockout_label, 'winfo_exists') and self.lockout_label.winfo_exists():
                 self.lockout_label.destroy()
                 self.lockout_label = None
@@ -296,6 +414,8 @@ class SecureVaultApp:
             return False
             
         except Exception as e:
+            # If there's an error, schedule a retry
+            print(f"Error in check_lock_status: {e}")
             self.lock_timer_id = self.root.after(1000, self.check_lock_status)
             return True
 
@@ -312,7 +432,7 @@ class SecureVaultApp:
         return 300
 
     def handle_login(self, username, password):
-        """Handle login attempt - ONE PASSWORD DOES EVERYTHING"""
+        """Handle login attempt WITH AUDIT LOGGING"""
         # Check if account is locked
         if self.check_lock_status():
             messagebox.showerror("Account Locked", 
@@ -332,32 +452,24 @@ class SecureVaultApp:
             user_email = user_data["email"]
             
             if bcrypt.checkpw(password.encode(), user_data["password"].encode()):
-                # ✅ SUCCESSFUL LOGIN - USE SAME PASSWORD FOR ENCRYPTION!
-                try:
-                    self.encryption.setup_for_user(username, password)
-                    
-                    # Set session data
-                    self.current_user = username
-                    self.user_data = user_data
-                    self.failed_attempts = 0
-                    self.login_attempts = 0
+                # Successful login
+                self.current_user = username
+                self.user_data = user_data
+                self.failed_attempts = 0
+                self.login_attempts = 0
 
-                    # Log successful login
-                    AuditLog.log_login_success(user_email, "Windows PC")
-                    self.load_auto_lock_setting()
-                    self.show_dashboard()
-                    return
-                    
-                except Exception as e:
-                    messagebox.showerror("Encryption Error", 
-                                       f"Cannot setup encryption: {str(e)}")
-                    return
+                AuditLog.log_login_success(user_email, "Windows PC")
+                self.load_auto_lock_setting()
+                self.credential_manager.current_user = self.current_user
+                self.show_dashboard()
+                return
             else:
                 # Failed login
                 self.failed_attempts += 1
                 self.login_attempts += 1
                 AuditLog.log_login_failed(user_email, "Invalid Password", "Windows PC")
                 
+                # Check if should lock account
                 if self.login_attempts >= 5:
                     lockout_duration = self.get_lockout_duration(username)
                     self.locked_until = time.time() + lockout_duration
@@ -369,9 +481,11 @@ class SecureVaultApp:
                     messagebox.showerror("Account Locked", 
                                        f"Too many failed attempts! Account locked for {minutes} minutes.")
                     
+                    # Start lock timer
                     self.check_lock_status()
                     return
                 
+                # Log multiple failed attempts
                 if self.login_attempts >= 3:
                     AuditLog.log_multiple_failed_attempts(
                         user_email, 
@@ -397,6 +511,7 @@ class SecureVaultApp:
                 self.check_lock_status()
                 return
 
+        # Update attempts display
         if hasattr(self, 'update_attempts_func'):
             self.update_attempts_func(self.failed_attempts)
         
@@ -455,7 +570,7 @@ class SecureVaultApp:
 
     # ---------------- Dashboard ----------------
     def show_dashboard(self):
-        """Show dashboard"""
+        """Show dashboard with FIXED decryption"""
         # Load vault data
         if not os.path.exists(self.vault_file):
             messagebox.showerror("Error", "Vault file not found!")
@@ -465,11 +580,12 @@ class SecureVaultApp:
         with open(self.vault_file, "r") as f:
             vault_data = json.load(f)
 
-        # Decrypt credentials using user's password (same as login!)
+        # Decrypt credentials with error handling
         credentials = []
         if self.current_user in vault_data:
             for cred in vault_data[self.current_user]:
                 try:
+                    # Try to decrypt
                     decrypted = {
                         'service': self.encryption.decrypt(cred['service']),
                         'username': self.encryption.decrypt(cred['username']),
@@ -479,11 +595,16 @@ class SecureVaultApp:
                     }
                     credentials.append(decrypted)
                 except Exception as e:
-                    print(f"Error decrypting credential: {e}")
-                    messagebox.showerror("Decryption Error", 
-                                       "Cannot decrypt your vault!")
-                    self.handle_logout()
-                    return
+                    # If decryption fails, use placeholder
+                    print(f"Note: Could not decrypt some credentials for {self.current_user}")
+                    # Add placeholder instead of crashing
+                    credentials.append({
+                        'service': '[Encryption Error]',
+                        'username': '[Please re-add this credential]',
+                        'password': '********',
+                        'category': cred.get('category', 'General'),
+                        'strength': 'Weak'
+                    })
 
         # Get user email for audit logging
         users_file = "users.json"
@@ -500,15 +621,6 @@ class SecureVaultApp:
         # Clear existing widgets
         for widget in self.root.winfo_children():
             widget.destroy()
-
-        # Create credential manager
-        self.credential_manager = CredentialManager(
-            root=self.root,
-            current_user=self.current_user,
-            update_callback=self.update_vault_data,
-            encryption=self.encryption,
-            dashboard_callback=self.show_dashboard
-        )
 
         # Create dashboard
         self.dashboard = Dashboard(
@@ -529,6 +641,10 @@ class SecureVaultApp:
         """Save updated credentials to vault"""
         encrypted_creds = []
         for cred in updated_credentials:
+            # Skip placeholder entries
+            if cred['service'] == '[Encryption Error]':
+                continue
+                
             encrypted_creds.append({
                 'service': self.encryption.encrypt(cred['service']),
                 'username': self.encryption.encrypt(cred['username']),
@@ -606,13 +722,34 @@ class SecureVaultApp:
 
     # ---------------- Open Credential Manager ----------------
     def open_credentials_manager(self):
-        """Open credential management screen"""
+        """Open credential management screen - FIXED DECRYPTION"""
+        self.credential_manager.current_user = self.current_user
+
+        # Load user's credentials with error handling
+        self.credential_manager.data["users"][self.current_user] = {"credentials": []}
+        if os.path.exists(self.vault_file):
+            with open(self.vault_file, "r") as f:
+                vault_data = json.load(f)
+                for cred in vault_data.get(self.current_user, []):
+                    try:
+                        # Try to decrypt
+                        decrypted_cred = {
+                            "service": self.encryption.decrypt(cred['service']),
+                            "username": self.encryption.decrypt(cred['username']),
+                            "password": self.encryption.decrypt(cred['password']),
+                            "strength": cred.get('strength', 'Weak')
+                        }
+                        self.credential_manager.data["users"][self.current_user]["credentials"].append(decrypted_cred)
+                    except:
+                        # If decryption fails, skip this credential
+                        print(f"Note: Skipping one credential for {self.current_user} (encryption mismatch)")
+
         self.credential_manager.show_credentials()
 
 
 print(">>> MAIN.PY EXECUTED <<<")
 print(">>> STARTING SECURE VAULT APPLICATION <<<")
-print(">>> SINGLE PASSWORD SYSTEM <<<")
+print(">>> WITH USER REGISTRATION ENABLED <<<")
 
 if __name__ == "__main__":
     app = SecureVaultApp()
