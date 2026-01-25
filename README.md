@@ -31,7 +31,9 @@ Network Security: IP tracking and geolocation simulation
 Quick Start:
 
 sudo apt install python3-bcrypt python3-cryptography
+
 sudo apt instal  python3-pil 
+
 python3 main.py(to run the code)
 
 Features:
